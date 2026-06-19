@@ -1,0 +1,78 @@
+#! /bin/bash
+# SPDX-License-Identifier: GPL-2.0
+# Copyright (c) 2026 Red Hat.  All Rights Reserved.
+#
+# FS QA Test No. 2000
+#
+# Test that xfs_repair strips fsverity metadata from inodes if filesystem lost
+# its fsverity feature flag.
+#
+. ./common/preamble
+_begin_fstest auto quick verity
+
+_cleanup()
+{
+	cd /
+	_restore_fsverity_signatures
+	rm -f $tmp.*
+}
+
+. ./common/verity
+. ./common/filter
+. ./common/fuzzy
+
+_require_scratch_verity
+_disable_fsverity_signatures
+_require_scratch_nocheck	# fsck test
+
+_scratch_mkfs_verity >> $seqres.full
+_scratch_mount
+
+_require_xfs_has_feature "$SCRATCH_MNT" verity
+VICTIM_FILE="$SCRATCH_MNT/a"
+
+# Check again to confirm that the caller's MKFS_OPTIONS result in a filesystem
+# that supports fsverity.
+_fsv_can_enable "$VICTIM_FILE" || _notrun "cannot enable fsverity"
+
+_filter_bmap()
+{
+	sed -E 's/offset [0-9]+ startblock [0-9]+ \([0-9]+\/[0-9]+\)/offset xx startblock xx (xx\/xx)/'
+}
+
+create_victim()
+{
+	local filesize="${1:-3}"
+
+	rm -f "$VICTIM_FILE"
+	perl -e "print 'moo' x $((filesize / 3))" > "$VICTIM_FILE"
+	fsverity enable --hash-alg=sha256 --block-size=1024 "$VICTIM_FILE"
+	fsverity measure "$VICTIM_FILE" | _filter_scratch
+}
+
+cat_victim() {
+	$XFS_IO_PROG -r -c 'pread -q 0 4096' "$VICTIM_FILE" 2>&1 | _filter_scratch
+}
+
+echo "Part 1: Disable fsverity on the filesystem" | tee -a $seqres.full
+create_victim
+md5sum "$VICTIM_FILE" | _filter_scratch
+_scratch_unmount
+_scratch_xfs_db -x -c "path /a" -c "bmap" | _filter_bmap
+_scratch_set_rocompat 4 0 >> $seqres.full
+
+echo "Part 2: Run repair to clear XFS_DIFLAG2_VERITY and truncate metadata" | \
+	tee -a $seqres.full
+$XFS_REPAIR_PROG $SCRATCH_DEV >> $seqres.full 2>&1
+_scratch_xfs_db -x -c "path /a" -c "bmap" | _filter_bmap
+_scratch_xfs_db -x -c "path /a" -c "p v3.flags2" | \
+	awk '/^v3.flags2 = 0x[[:xdigit:]]+/ {
+		printf ("0x%x\n", and(strtonum($1), compl(lshift(1, 6))))}'
+_scratch_mount
+cat_victim
+md5sum "$VICTIM_FILE" | _filter_scratch
+_scratch_unmount
+
+# success, all done
+status=0
+exit

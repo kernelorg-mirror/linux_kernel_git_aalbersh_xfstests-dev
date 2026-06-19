@@ -1,0 +1,10 @@
+QA output created by 2000
+Part 1: Disable fsverity on the filesystem
+sha256:bab5cfebae30d53e4318629d4ba0b4760d6aae38e03ae235741ed69a31873f1f SCRATCH_MNT/a
+b7d192a44e0da16cd180ebe85efb7c8f  SCRATCH_MNT/a
+data offset xx startblock xx (xx/xx) count 1 flag 0
+data offset xx startblock xx (xx/xx) count 1 flag 0
+Part 2: Run repair to clear XFS_DIFLAG2_VERITY and truncate metadata
+data offset xx startblock xx (xx/xx) count 1 flag 0
+0x0
+b7d192a44e0da16cd180ebe85efb7c8f  SCRATCH_MNT/a
