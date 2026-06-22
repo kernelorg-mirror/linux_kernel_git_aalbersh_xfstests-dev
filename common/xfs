@@ -2442,3 +2442,25 @@ _require_xfs_healer()
 
 	_scratch_mkfs_xfs_supported "$arg" concurrency=0
 }
+
+_scratch_set_rocompat() {
+	shift=$1
+	value=$2
+	ro_compat=$(_scratch_xfs_get_metadata_field "features_ro_compat" "sb 0")
+	echo $ro_compat | grep -q -E '^0x[[:xdigit:]]+$'
+	if [[ $? != 0  ]]; then
+		echo ":$ro_compat:"
+		echo "features_ro_compat has an invalid value."
+		return 1
+	fi
+
+	ro_compat=$(echo $ro_compat | awk -v shift=$shift -v value=$value '/^0x[[:xdigit:]]+/ {
+		printf ("0x%x\n",
+			value ?
+			or(strtonum($1), lshift(1, shift)) :
+			and(strtonum($1), compl(lshift(1, shift))))}')
+
+	# write the new ro compat field to the superblock
+	_scratch_xfs_set_metadata_field "features_ro_compat" "$ro_compat" "sb 0" \
+					> $seqres.full 2>&1
+}
