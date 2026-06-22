@@ -1,0 +1,69 @@
+#! /bin/bash
+# SPDX-License-Identifier: GPL-2.0
+# Copyright (c) 2026 Red Hat.  All Rights Reserved.
+#
+# FS QA Test No. 2001
+#
+# Test that xfs_metadump preserves fsverity metadata (extents post EOF).
+#
+. ./common/preamble
+_begin_fstest auto quick verity metadump
+
+# Override the default cleanup function.
+_cleanup()
+{
+	cd /
+	_restore_fsverity_signatures
+	_xfs_cleanup_verify_metadump
+	rm -rf $tmp.*
+}
+
+# Import common functions.
+. ./common/filter
+. ./common/verity
+. ./common/populate
+. ./common/metadump
+
+_require_scratch_verity
+_disable_fsverity_signatures
+_require_command "$XFS_MDRESTORE_PROG" "xfs_mdrestore"
+_require_scratch_xfs_mdrestore
+_require_loop
+_xfs_setup_verify_metadump
+
+# The number of extra_test output blocks depends on how many metadump formats
+# can be verified.  On a realtime configuration metadump v1 does not support
+# realtime devices and is skipped, so only the v2 pass produces output.  Select
+# the matching golden output.
+seqfull=$0
+if [ "$USE_EXTERNAL" = yes ] && [ -n "$SCRATCH_RTDEV" ]; then
+	_link_out_file_named $seqfull.out "rt"
+else
+	_link_out_file_named $seqfull.out "default"
+fi
+
+_scratch_mkfs_verity >> $seqres.full
+_scratch_populate nofill >> $seqres.full
+
+extra_test() {
+	verity_files=(
+		"$SCRATCH_MNT/verity"
+		"$SCRATCH_MNT/sparse_verity"
+		"$SCRATCH_MNT/salted_verity"
+	)
+	blksz=$(_get_block_size "$SCRATCH_MNT")
+
+	for vfile in "${verity_files[@]}"; do
+		ino=$(stat -c '%i' "$vfile")
+		fsize=$(_scratch_xfs_db -x -r -c "inode $ino" -c 'p core.size' | \
+			awk '{print $3}')
+		last_data_block=$(( (fsize + blksz - 1) / blksz ))
+		$XFS_IO_PROG -r -c "fiemap -v $fsize" "$vfile" | \
+			awk '{$3=""; print}' | _filter_scratch
+	done
+}
+
+_xfs_verify_metadumps '-o' extra_test
+
+# success, all done
+_exit 0
