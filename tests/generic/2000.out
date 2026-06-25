@@ -1,0 +1,16 @@
+QA output created by 2000
+Test 1: Try to set fsverity flag
+------------------ SCRATCH_MNT/testfile
+------------------ SCRATCH_MNT/testfile
+Test 2: Verify verity flag preserved when modifying other attributes
+-----------------V SCRATCH_MNT/testfile
+----s-d----------V SCRATCH_MNT/testfile
+Test 3: DAX flag can not be set on the fsverity file
+-----------------V SCRATCH_MNT/testfile
+Can not set fsxattr on ./testfile: Invalid argument
+-----------------V SCRATCH_MNT/testfile
+Test 4: Modify other flags via FS_IOC_GETFLAGS/SETFLAGS ioctl
+FS_IOC_GETFLAGS reports verity flag
+FS_IOC_SETFLAGS set nodump: ok
+FS_IOC_GETFLAGS still reports verity flag
+nodump flag set via ioctl
