@@ -36,16 +36,17 @@ struct file_attr {
 	|| S_ISSOCK((x)))
 
 static struct option long_options[] = {
-	{"set",			no_argument,	0,	's' },
-	{"get",			no_argument,	0,	'g' },
-	{"no-follow",		no_argument,	0,	'n' },
-	{"at-cwd",		no_argument,	0,	'a' },
-	{"set-nodump",		no_argument,	0,	'd' },
-	{"invalid-at",		no_argument,	0,	'i' },
-	{"too-big-arg",		no_argument,	0,	'b' },
-	{"too-small-arg",	no_argument,	0,	'm' },
-	{"new-fsx-flag",	no_argument,	0,	'x' },
-	{0,			0,		0,	0 }
+	{"set",			no_argument,		0,	's' },
+	{"get",			no_argument,		0,	'g' },
+	{"no-follow",		no_argument,		0,	'n' },
+	{"at-cwd",		no_argument,		0,	'a' },
+	{"set-nodump",		no_argument,		0,	'd' },
+	{"invalid-at",		no_argument,		0,	'i' },
+	{"too-big-arg",		no_argument,		0,	'b' },
+	{"too-small-arg",	no_argument,		0,	'm' },
+	{"new-fsx-flag",	no_argument,		0,	'x' },
+	{"flags",		required_argument,	0,	'f' },
+	{0,			0,			0,	0 }
 };
 
 static struct xflags {
@@ -70,6 +71,7 @@ static struct xflags {
 	{ FS_XFLAG_DAX,			"x", "dax"		},
 	{ FS_XFLAG_COWEXTSIZE,		"C", "cowextsize"	},
 	{ FS_XFLAG_HASATTR,		"X", "has-xattr"	},
+	{ FS_XFLAG_VERITY,		"V", "fsverity"		},
 	{ 0, NULL, NULL }
 };
 
@@ -173,6 +175,9 @@ int main(int argc, char *argv[])
 		case 'd':
 			fa_xflags |= FS_XFLAG_NODUMP;
 			break;
+		case 'f':
+			fa_xflags |= strtoul(optarg, NULL, 16);
+			break;
 		case 'i':
 			at_flags |= (1 << 25);
 			break;
@@ -265,6 +270,7 @@ usage:
 	printf("\t--at-cwd, -a\t\topen file at current working directory\n");
 	printf("\t--no-follow, -n\t\tdon't follow symlinks\n");
 	printf("\t--set-nodump, -d\t\tset FS_XFLAG_NODUMP on an inode\n");
+	printf("\t--flags, -f <hex>\t\tset custom flags (hex value)\n");
 	printf("\t--invalid-at, -i\t\tUse invalid AT_* flag\n");
 	printf("\t--too-big-arg, -b\t\tSet fsxattr size bigger than PAGE_SIZE\n");
 	printf("\t--too-small-arg, -m\t\tSet fsxattr size to 19 bytes\n");

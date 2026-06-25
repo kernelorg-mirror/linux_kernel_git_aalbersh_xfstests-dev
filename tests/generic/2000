@@ -1,0 +1,65 @@
+#! /bin/bash
+# SPDX-License-Identifier: GPL-2.0
+# Copyright (c) 2026 Red Hat.  All Rights Reserved.
+#
+# FS QA Test No. 2000
+#
+# Test that fsverity inode flag can not be set with setfattr and DAX flag can
+# not be set on the inode with fsverity. Also verify that the verity flag is
+# preserved when modifying other file attributes (tests for potential bug where
+# xfs_flags2diflags2() doesn't preserve verity bit in the preservation mask).
+#
+. ./common/preamble
+_begin_fstest verity quick
+
+# Override the default cleanup function.
+_cleanup()
+{
+	cd /
+	_restore_fsverity_signatures
+	rm -f $tmp.*
+}
+
+# Import common functions.
+. ./common/filter
+. ./common/verity
+
+_require_scratch_verity
+_require_test_program "file_attr"
+_require_file_attr
+
+_scratch_mkfs_verity &>> $seqres.full
+_disable_fsverity_signatures
+_scratch_mount
+
+testfile=$SCRATCH_MNT/testfile
+
+file_attr () {
+	$here/src/file_attr $*
+}
+
+# Test 1: Verify that fsverity flag cannot be set via setfattr
+echo "Test 1: Try to set fsverity flag"
+touch $testfile
+file_attr --get $testfile | _filter_scratch | _filter_vfs_file_attributes ~sdxV
+file_attr --set --flags 0x0020000 $SCRATCH_MNT ./testfile
+file_attr --get $testfile | _filter_scratch | _filter_vfs_file_attributes ~sdxV
+rm -f $testfile
+
+echo "Test 2: Verify verity flag preserved when modifying other attributes"
+_fsv_create_enable_file $testfile >> $seqres.full
+file_attr --get $testfile | _filter_scratch | _filter_vfs_file_attributes ~sdxV
+file_attr --set --flags 0x00000A0 $SCRATCH_MNT ./testfile
+file_attr --get $testfile | _filter_scratch | _filter_vfs_file_attributes ~sdxV
+rm -f $testfile
+
+echo "Test 3: DAX flag can not be set on the fsverity file"
+_fsv_create_enable_file $testfile >> $seqres.full
+file_attr --get $testfile | _filter_scratch | _filter_vfs_file_attributes ~sdxV
+file_attr --set --flags 0x0008000 $SCRATCH_MNT ./testfile
+file_attr --get $testfile | _filter_scratch | _filter_vfs_file_attributes ~sdxV
+rm -f $testfile
+
+# success, all done
+status=0
+exit
