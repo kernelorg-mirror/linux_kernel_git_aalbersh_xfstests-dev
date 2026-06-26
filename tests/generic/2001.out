@@ -1,0 +1,9 @@
+QA output created by 2001
+Step 1: Test with chattr +x
+--------------x--- SCRATCH_MNT/testfile
+ERROR: FS_IOC_ENABLE_VERITY failed on 'SCRATCH_MNT/testfile': Invalid argument
+--------------x--- SCRATCH_MNT/testfile
+Step 2: Test with -o dax mount option
+------------------ SCRATCH_MNT/testfile
+ERROR: FS_IOC_ENABLE_VERITY failed on 'SCRATCH_MNT/testfile': Invalid argument
+------------------ SCRATCH_MNT/testfile

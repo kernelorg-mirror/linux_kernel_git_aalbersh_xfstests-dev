@@ -1,0 +1,60 @@
+#! /bin/bash
+# SPDX-License-Identifier: GPL-2.0
+# Copyright (c) 2026 Red Hat.  All Rights Reserved.
+#
+# FS QA Test No. 2001
+#
+# Check that fsverity can not be enabled on DAX files
+#
+. ./common/preamble
+_begin_fstest verity quick
+
+# Override the default cleanup function.
+_cleanup()
+{
+	cd /
+	_restore_fsverity_signatures
+	rm -f $tmp.*
+}
+
+# Import common functions.
+. ./common/filter
+. ./common/verity
+
+_require_scratch_verity
+_require_test_program "file_attr"
+_require_file_attr
+_require_scratch_dax_mountopt "dax"
+_disable_fsverity_signatures
+
+_scratch_mkfs_verity &>> $seqres.full
+_scratch_mount "-o dax=always"
+
+testfile=$SCRATCH_MNT/testfile
+
+file_attr () {
+	$here/src/file_attr $*
+}
+
+echo "Step 1: Test with chattr +x"
+head -c $((FSV_BLOCK_SIZE * 2)) /dev/zero > $testfile
+chattr +x $testfile
+_scratch_remount "-o dax=always"
+file_attr --get $testfile | _filter_scratch | _filter_vfs_file_attributes ~xV
+_fsv_enable "$testfile" 2>&1 | _filter_scratch
+file_attr --get $testfile | _filter_scratch | _filter_vfs_file_attributes ~xV
+echo "writable" > $testfile
+rm -f $testfile
+
+echo "Step 2: Test with -o dax=always mount option"
+_scratch_unmount
+_scratch_mount "-o dax=always"
+head -c $((FSV_BLOCK_SIZE * 2)) /dev/zero > $testfile
+file_attr --get $testfile | _filter_scratch | _filter_vfs_file_attributes ~xV
+_fsv_enable "$testfile" 2>&1 | _filter_scratch
+file_attr --get $testfile | _filter_scratch | _filter_vfs_file_attributes ~xV
+echo "writable" > $testfile
+
+# success, all done
+status=0
+exit
