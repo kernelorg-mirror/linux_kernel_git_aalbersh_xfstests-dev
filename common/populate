@@ -445,8 +445,12 @@ _scratch_xfs_populate() {
 	# Inode btree
 	echo "+ inobt btree"
 	local ino_per_rec=64
-	local rec_per_btblock=16
-	local nr="$(( 2 * (blksz / rec_per_btblock) * ino_per_rec ))"
+	local inobt_rec_size=16
+	local rec_per_btblock=$(( (blksz - 56) / inobt_rec_size ))
+	# Need enough inode chunks for both inobt and finobt to reach height > 1.
+	# The removal process (every 19th file) means roughly 1/19 of inodes are freed.
+	# To ensure enough finobt records (chunks with free inodes), we need more chunks.
+	local nr="$(( 6 * rec_per_btblock * ino_per_rec ))"
 	local dir="${SCRATCH_MNT}/INOBT"
 	__populate_create_dir "${dir}" "${nr}" true --file-pct 100
 
