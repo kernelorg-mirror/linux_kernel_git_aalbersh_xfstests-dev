@@ -1,0 +1,19 @@
+QA output created by 2002
+
+# verity file has correct contents and size
+100000
+100000
+
+# Trying to measure non-verity file fails with ENODATA
+ERROR: FS_IOC_MEASURE_VERITY failed on 'SCRATCH_MNT/dir/file.fsv': No data available
+
+# verity on small files
+Files matched
+Files matched
+Files matched
+
+# verity on 100MB file (multiple levels in hash tree)
+Files matched
+
+# verity on sparse file
+Files matched
