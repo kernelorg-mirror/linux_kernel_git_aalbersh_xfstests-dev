@@ -1,0 +1,34 @@
+QA output created by 2003
+
+# verity file has correct contents and size
+100000
+100000
+
+# Trying to measure non-verity file fails with ENODATA
+ERROR: FS_IOC_MEASURE_VERITY failed on 'SCRATCH_MNT/file.fsv': No data available
+
+# verity on small files
+Files matched
+Files matched
+Files matched
+
+# verity on 100MB file (multiple levels in hash tree)
+Files matched
+
+# verity on sparse file
+Files matched
+
+# copy of fsverity file looses fsverity status
+Files matched
+
+# enabling verity on copy doesn't affect original
+Original file should not have verity:
+ERROR: FS_IOC_MEASURE_VERITY failed on 'SCRATCH_MNT/file': No data available
+Original file should still be writable:
+Write succeeded
+
+# extend original after copy, then enable verity on copy
+Verity file should be readable:
+Read succeeded
+Verity file should not be writable:
+bash: SCRATCH_MNT/file.fsv: Operation not permitted
