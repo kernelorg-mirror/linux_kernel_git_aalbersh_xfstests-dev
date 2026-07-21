@@ -1,0 +1,44 @@
+#! /bin/bash
+# SPDX-License-Identifier: GPL-2.0
+# Copyright (c) 2026 Red Hat.  All Rights Reserved.
+#
+# FS QA Test No. 2002
+#
+# Test that statx reports verity status correctly.
+#
+. ./common/preamble
+_begin_fstest auto quick verity
+
+# Override the default cleanup function.
+_cleanup()
+{
+	cd /
+	_restore_fsverity_signatures
+	rm -f $tmp.*
+}
+
+# Import common functions.
+. ./common/verity
+
+_require_scratch_verity
+_require_test_program "stat_test"
+_disable_fsverity_signatures
+
+_scratch_mkfs_verity &>> $seqres.full
+_scratch_mount
+
+testfile=$SCRATCH_MNT/testfile
+echo "Test data" > $testfile
+
+$here/src/stat_test $testfile attr=-verity || \
+	echo "statx should report verity as unset on regular file"
+
+_fsv_enable $testfile >> $seqres.full
+
+$here/src/stat_test $testfile attr=+verity || \
+	echo "statx should report verity as set on verity file"
+
+# success, all done
+echo "Silence is golden"
+status=0
+exit

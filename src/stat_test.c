@@ -113,6 +113,7 @@ static const struct attr_name attr_list[] = {
 	{ "encrypted",	STATX_ATTR_ENCRYPTED },
 	{ "immutable",	STATX_ATTR_IMMUTABLE },
 	{ "nodump",	STATX_ATTR_NODUMP },
+	{ "verity",	STATX_ATTR_VERITY },
 };
 
 static int attr_name_cmp(const void *_key, const void *_p)
@@ -155,6 +156,7 @@ void format(void)
 	fprintf(stderr, "\t\tencrypted -- The file is marked as encrypted\n");
 	fprintf(stderr, "\t\timmutable -- The file is marked as immutable\n");
 	fprintf(stderr, "\t\tnodump -- The file is marked as no-dump\n");
+	fprintf(stderr, "\t\tverity -- The file is protected by fs-verity\n");
 	fprintf(stderr, "\tcmp_ref -- check that the reference file has identical stats\n");
 	fprintf(stderr, "\tref=<file> -- get reference stats from file\n");
 	fprintf(stderr, "\tstx_<field>=<val> -- statx field value check\n");
