@@ -1,0 +1,146 @@
+#! /bin/bash
+# SPDX-License-Identifier: GPL-2.0
+# Copyright (c) 2026 Red Hat.  All Rights Reserved.
+#
+# FS QA Test No. 2004
+#
+# Test fs-verity when the file data is immediately followed by the Merkle
+# tree.  fs-verity metadata is stored at the next 64k offset after EOF, so for
+# a file of size 64k the Merkle tree is stored exactly after EOF, in the block
+# following the last data block.  These extents may be merged.  Test that
+# verity still works in this geometry: correct contents/size/digest, and that
+# corrupting either the data or the Merkle tree is detected.
+#
+. ./common/preamble
+_begin_fstest auto quick verity mmap
+
+# Override the default cleanup function.
+_cleanup()
+{
+	cd /
+	_restore_fsverity_signatures
+	rm -f $tmp.*
+}
+
+# Import common functions.
+. ./common/filter
+. ./common/verity
+
+_require_scratch_verity
+_disable_fsverity_signatures
+_require_fsverity_corruption
+
+_scratch_mkfs_verity &>> $seqres.full
+_scratch_mount
+fsv_orig_file=$SCRATCH_MNT/file
+fsv_file=$SCRATCH_MNT/file.fsv
+
+# Size chosen so that the Merkle tree lands in the block right after EOF.
+FILE_LEN=65536
+
+filter_output()
+{
+    _filter_bash | _filter_scratch
+}
+
+setup_file()
+{
+	head -c $FILE_LEN /dev/urandom > $fsv_orig_file
+	cp $fsv_orig_file $fsv_file
+	_fsv_enable $fsv_file
+}
+
+corruption_test()
+{
+	local zap_offset=$1
+	local zap_len=$2
+	local is_merkle_tree=${3:-false} # if true, zap tree instead of data
+
+	local paramstr="zap_offset=$zap_offset"
+	paramstr+=", zap_len=$zap_len"
+	paramstr+=", is_merkle_tree=$is_merkle_tree"
+
+	if $is_merkle_tree; then
+		local corrupt_func=_fsv_scratch_corrupt_merkle_tree
+	else
+		local corrupt_func=_fsv_scratch_corrupt_bytes
+	fi
+	local fs_block_size=$(_get_block_size $SCRATCH_MNT)
+
+	rm -rf "${SCRATCH_MNT:?}"/*
+	setup_file
+
+	# Corrupt part of the file (data or Merkle tree).
+	head -c $zap_len /dev/zero | tr '\0' X \
+		| $corrupt_func $fsv_file $zap_offset
+
+	# Reading the full file with buffered I/O should fail.
+	_scratch_cycle_mount
+	if cat $fsv_file >/dev/null 2>$tmp.err; then
+		echo "Unexpectedly was able to read full file ($paramstr)"
+	elif ! grep -q 'Input/output error' $tmp.err; then
+		echo "Wrong error reading full file ($paramstr):"
+		cat $tmp.err
+	fi
+
+	# Reading the full file with direct I/O should fail.
+	_scratch_cycle_mount
+	if dd if=$fsv_file bs=$fs_block_size iflag=direct status=none \
+		of=/dev/null 2>$tmp.err
+	then
+		echo "Unexpectedly was able to read full file with DIO ($paramstr)"
+	elif ! grep -q 'Input/output error' $tmp.err; then
+		echo "Wrong error reading full file with DIO ($paramstr):"
+		cat $tmp.err
+	fi
+
+	# Reading just the corrupted part of the file should fail.
+	if ! $is_merkle_tree; then
+		if dd if=$fsv_file bs=1 skip=$zap_offset count=$zap_len \
+			of=/dev/null status=none 2>$tmp.err; then
+			echo "Unexpectedly was able to read corrupted part ($paramstr)"
+		elif ! grep -q 'Input/output error' $tmp.err; then
+			echo "Wrong error reading corrupted part ($paramstr):"
+			cat $tmp.err
+		fi
+	fi
+
+	# Reading the full file via mmap should fail.
+	_mread $fsv_file 0 $FILE_LEN >/dev/null 2>$tmp.err
+	if ! grep -q 'Bus error' $tmp.err; then
+		echo "Didn't see SIGBUS when reading file via mmap"
+		cat $tmp.err
+	fi
+
+	# Reading just the corrupted part via mmap should fail.
+	if ! $is_merkle_tree; then
+		_mread $fsv_file $zap_offset $zap_len >/dev/null 2>$tmp.err
+		if ! grep -q 'Bus error' $tmp.err; then
+			echo "Didn't see SIGBUS when reading corrupted part via mmap"
+			cat $tmp.err
+		fi
+	fi
+}
+
+_fsv_scratch_begin_subtest "verity file has correct contents and size"
+setup_file >> $seqres.full
+cmp $fsv_file $fsv_orig_file
+_get_filesize $fsv_file
+_scratch_cycle_mount
+cmp $fsv_file $fsv_orig_file
+_get_filesize $fsv_file
+
+_fsv_scratch_begin_subtest "verity file can be measured"
+setup_file >> $seqres.full
+_fsv_measure $fsv_file | _filter_fsverity_digest
+
+_fsv_scratch_begin_subtest "corrupting file data is detected"
+corruption_test 0 5
+corruption_test $((FILE_LEN - 5)) 5
+
+_fsv_scratch_begin_subtest "corrupting Merkle tree is detected"
+corruption_test 100 10 true
+
+# success, all done
+status=0
+exit
