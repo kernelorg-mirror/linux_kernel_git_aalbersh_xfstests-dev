@@ -1,0 +1,12 @@
+QA output created by 2004
+
+# verity file has correct contents and size
+65536
+65536
+
+# verity file can be measured
+sha256:<digest>
+
+# corrupting file data is detected
+
+# corrupting Merkle tree is detected
