@@ -131,7 +131,7 @@ ALLFILES = $(wildcard [0-9]??*)
 # handle wildcarded multi-suffix matching. Hence we separate the
 # processing of these right now.
 EXTENDED_OUTFILES = $(wildcard [0-9]??*.out.*)
-EXTENDED_OUTFILE_CFGS = $(wildcard [0-9]??.cfg)
+EXTENDED_OUTFILE_CFGS = $(wildcard [0-9]???.cfg [0-9]??.cfg)
 BASIC_OUTFILES = $(wildcard [0-9]??*.out)
 OUTFILES = $(EXTENDED_OUTFILES) $(EXTENDED_OUTFILE_CFGS) $(BASIC_OUTFILES)
 
