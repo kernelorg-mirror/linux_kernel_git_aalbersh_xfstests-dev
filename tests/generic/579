@@ -40,6 +40,18 @@ nproc_reader=$((6 * LOAD_FACTOR))
 nproc_stress=$((3 * LOAD_FACTOR))
 runtime=$((20 * TIME_FACTOR))
 
+# On an xfs realtime configuration the regular file data lives on the realtime
+# device. When the realtime device is smaller than the data device, that space
+# runs out. Test starts to fails with ENOSPC. Skip this test in such
+# configuration.
+if [ "$USE_EXTERNAL" = yes ] && [ -n "$SCRATCH_RTDEV" ]; then
+	data_size=$(_get_device_size $SCRATCH_DEV)
+	rt_size=$(_get_device_size $SCRATCH_RTDEV)
+	if [ "$rt_size" -lt "$data_size" ]; then
+		_notrun "realtime device ($rt_size) smaller than data device ($data_size)"
+	fi
+fi
+
 # Create the test files and start the fs-verity enabler processes.
 for ((proc = 0; proc < nproc_enabler; proc++)); do
 	orig_file=$SCRATCH_MNT/orig$proc
