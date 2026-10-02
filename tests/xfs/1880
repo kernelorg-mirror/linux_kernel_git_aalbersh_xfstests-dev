@@ -105,8 +105,17 @@ create_victim
 blksize=$(_get_block_size $SCRATCH_MNT)
 device=$(victim_device)
 _scratch_unmount
+# The fsverity descriptor is written into the last block of the merkle tree
+# extent (bmx[1]).  The descriptor size is stored as a big-endian __be32 in the
+# last 4 bytes of that extent (see xfs_fsverity_get_descriptor()).  Corrupt it
+# to an out-of-range value so the kernel marks the inode sick and xfs_scrub
+# reports inode record corruption.
 block=$(_scratch_xfs_db -x -c "path /a" -c 'p u3.bmx[1].startblock' | cut -d' ' -f3)
-dd if=/dev/random of=$device bs=1 seek=$(( $block*$blksize )) count=8 > /dev/null 2>&1
+blockcount=$(_scratch_xfs_db -x -c "path /a" \
+	-c 'p u3.bmx[1].blockcount' | cut -d' ' -f3)
+descblock=$(( $block + $blockcount - 1 ))
+dd if=/dev/random of=$device bs=1 \
+	seek=$(( $descblock*$blksize + $blksize - 4 )) count=4 > /dev/null 2>&1
 _scratch_mount
 cat_victim
 run_scrub -n
@@ -144,11 +153,16 @@ echo "Part 9: Corrupt the fsverity salt" | tee -a $seqres.full
 create_victim
 device=$(victim_device)
 _scratch_unmount
+# The fsverity salt lives in the descriptor, which is the last block of the
+# merkle tree extent (bmx[1]).
 block=$(_scratch_xfs_db -x -c "path /a" -c 'p u3.bmx[1].startblock' | \
 	cut -d' ' -f3)
-printf '\x08' | dd of=$device bs=1 seek=$(( $block*$blksize+3 )) count=1 \
+blockcount=$(_scratch_xfs_db -x -c "path /a" \
+	-c 'p u3.bmx[1].blockcount' | cut -d' ' -f3)
+descblock=$(( $block + $blockcount - 1 ))
+printf '\x08' | dd of=$device bs=1 seek=$(( $descblock*$blksize+3 )) count=1 \
 	> /dev/null 2>&1
-dd if=/dev/random of=$device bs=1 seek=$(( $block*$blksize+80 )) count=8 \
+dd if=/dev/random of=$device bs=1 seek=$(( $descblock*$blksize+80 )) count=8 \
 	> /dev/null 2>&1
 _scratch_mount
 cat_victim
